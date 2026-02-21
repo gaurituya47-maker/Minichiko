@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import time
@@ -9,19 +8,19 @@ from datetime import datetime, timedelta
 # --- CONFIGURATION & STATE MANAGEMENT ---
 st.set_page_config(page_title="MinichikoNovel - Writer Portal", page_icon="📕", layout="wide")
 
-# สร้างตัวแปร State เพื่อเก็บข้อมูลชั่วคราว (แทน Mock Data)
+# สร้างตัวแปร State เพื่อเก็บข้อมูลชั่วคราว
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 if 'username' not in st.session_state:
     st.session_state['username'] = None
 if 'current_view' not in st.session_state:
-    st.session_state['current_view'] = 'home' # home, login, workspace, manage_chapters, analytics
+    st.session_state['current_view'] = 'home'
 if 'show_create_form' not in st.session_state:
     st.session_state['show_create_form'] = False
 if 'editing_novel_name' not in st.session_state:
     st.session_state['editing_novel_name'] = ""
 if 'my_novels' not in st.session_state:
-    st.session_state['my_novels'] = [] # เก็บรายชื่อนิยายที่สร้างใหม่
+    st.session_state['my_novels'] = []
 
 # --- ROUTING FUNCTIONS ---
 def go_to(view, novel_name=""):
@@ -44,19 +43,20 @@ def logout_user():
     st.session_state['editing_novel_name'] = ""
     go_to('home')
 
-# --- ฟังก์ชันสร้างกราฟสถิติ (สวยงามแบบไดนามิก) ---
+# --- DATA GENERATOR (แบบไม่มี Mock Data / โครงสร้างรอรับฐานข้อมูลจริง) ---
 @st.cache_data
-def get_analytics_data():
+def get_empty_analytics_data():
+    # สร้าง Dataframe ที่มีค่าเป็น 0 ทั้งหมดสำหรับ 30 วันย้อนหลัง
     dates = pd.date_range(end=datetime.today(), periods=30)
-    views = np.random.normal(15000, 2000, 30).astype(int)
-    visitors = (views * np.random.uniform(0.6, 0.8, 30)).astype(int)
-    df_traffic = pd.DataFrame({"Date": dates, "Views": views, "Unique Visitors": visitors})
+    df_traffic = pd.DataFrame({"Date": dates, "Views": [0]*30, "Unique Visitors": [0]*30})
     
-    countries = ["ไทย", "จีน (China)", "ญี่ปุ่น (Japan)", "เกาหลีใต้ (Korea)", "อื่นๆ (Inter)"]
-    readers = [45, 25, 15, 10, 5]
-    df_demo = pd.DataFrame({"Country": countries, "Percentage": readers})
+    # ฐานข้อมูลผู้อ่าน (รอข้อมูลจริง)
+    df_demo = pd.DataFrame({"Country": ["รอการเชื่อมต่อข้อมูล"], "Percentage": [100]})
     
-    return df_traffic, df_demo
+    # Heatmap แบบว่างเปล่า (ค่า 0 ทั้งหมด)
+    z_data = [[0]*24 for _ in range(7)]
+    
+    return df_traffic, df_demo, z_data
 
 # --- PAGE VIEWS (ระบบหน้าจอต่างๆ) ---
 
@@ -72,7 +72,6 @@ def login_page_view():
         st.markdown("MinichikoNovel Writer & Admin Portal")
         
         with st.form("login_form"):
-            # ไม่มี Hint บอกรหัสผ่านแล้ว
             username = st.text_input("Username")
             password = st.text_input("Password", type="password")
             submit = st.form_submit_button("Sign In", type="primary", use_container_width=True)
@@ -91,7 +90,6 @@ def writer_workspace_view():
     st.caption(f"ยินดีต้อนรับคุณ: {st.session_state['username']}")
     st.divider()
 
-    # ปุ่มเปิด/ปิด ฟอร์มสร้างนิยาย
     if st.button("➕ เพิ่มงานเขียนใหม่", type="primary"):
         st.session_state['show_create_form'] = not st.session_state['show_create_form']
 
@@ -101,7 +99,7 @@ def writer_workspace_view():
             novel_title = st.text_input("ชื่อเรื่อง", placeholder="ใส่ชื่อนิยายของคุณที่นี่...")
             c_form1, c_form2 = st.columns(2)
             with c_form1:
-                pen_name = st.text_input("นามปากกา", placeholder="เช่น Minichiko")
+                pen_name = st.text_input("นามปากกา")
                 category = st.selectbox("หมวดหมู่", ["นิยายวาย (BL)", "นิยายจีนโบราณ", "โรมานซ์", "แฟนตาซี"])
                 novel_desc = st.text_area("คำโปรย (Synopsis)", height=150)
             with c_form2:
@@ -109,7 +107,6 @@ def writer_workspace_view():
             
             if st.button("💾 บันทึกและสร้างเรื่อง", type="primary"):
                 if novel_title:
-                    # บันทึกข้อมูลลง Session State (ทำให้โชว์ด้านล่างได้ทันที)
                     st.session_state['my_novels'].append({
                         "title": novel_title,
                         "pen_name": pen_name if pen_name else st.session_state['username'],
@@ -125,7 +122,6 @@ def writer_workspace_view():
                 else:
                     st.error("กรุณาตั้งชื่อเรื่องก่อนบันทึก")
 
-    # ส่วนแสดงผลงานเขียนของฉัน
     st.markdown("### 📚 งานเขียนของฉัน")
     if len(st.session_state['my_novels']) == 0:
         st.info("คุณยังไม่มีผลงานในระบบ กดปุ่ม 'เพิ่มงานเขียนใหม่' เพื่อเริ่มต้นเรื่องแรกเลย!")
@@ -138,7 +134,6 @@ def writer_workspace_view():
                 c2.write(f"👁‍🗨 {novel['views']} วิว")
                 c2.write(f"💬 {novel['comments']} คอมเมนต์")
                 
-                # ปุ่มไปจัดการตอน และ ดูสถิติ
                 if c3.button("✏️ จัดการตอน", key=f"edit_{idx}", type="secondary", use_container_width=True):
                     go_to('manage_chapters', novel['title'])
                 if c3.button("📊 ดูสถิติ", key=f"stat_{idx}", use_container_width=True):
@@ -168,7 +163,7 @@ def manage_chapters_view():
     with col_editor:
         st.subheader("➕ เพิ่มตอนใหม่")
         with st.container(border=True):
-            chapter_name = st.text_input("ชื่อตอน", placeholder="เช่น ตอนที่ 1: จุดเริ่มต้น...")
+            chapter_name = st.text_input("ชื่อตอน")
             st.markdown("เนื้อหาตอน (พิมพ์หรือวางเนื้อหาที่นี่)")
             chapter_content = st.text_area("เนื้อหาตอน", height=350, label_visibility="collapsed")
             st.caption(f"จำนวนคำคร่าวๆ: {len(chapter_content.split())} คำ")
@@ -193,7 +188,7 @@ def manage_chapters_view():
                     st.error("กรุณาใส่ชื่อตอนและเนื้อหาก่อนบันทึก")
 
 # ==========================================
-# 3. หน้าแดชบอร์ดสถิติ (ANALYTICS)
+# 3. หน้าแดชบอร์ดสถิติ (ANALYTICS - ZERO STATE)
 # ==========================================
 def analytics_dashboard_view():
     col_h1, col_h2 = st.columns([5, 1])
@@ -203,29 +198,33 @@ def analytics_dashboard_view():
         if st.button("◀ กลับไปพื้นที่นักเขียน", use_container_width=True):
             go_to('workspace')
             
-    df_traffic, df_demo = get_analytics_data()
+    st.info("ℹ️ โหมดพร้อมใช้งาน: รอการเชื่อมต่อข้อมูลสถิติจากฐานข้อมูลจริง")
+    
+    df_traffic, df_demo, z_data = get_empty_analytics_data()
     
     st.markdown("### 📈 ภาพรวม 30 วันย้อนหลัง")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("👁️ ยอดวิวรวม", f"{df_traffic['Views'].sum():,}", "12.5%")
-    m2.metric("👤 ผู้เข้าชมแบบไม่ซ้ำ", f"{df_traffic['Unique Visitors'].sum():,}", "8.2%")
-    m3.metric("⏱️ เวลาอ่านเฉลี่ย", "18m 45s", "1m 20s")
-    m4.metric("🔄 อัตราการกลับมาอ่านซ้ำ", "68.4%", "-1.2%")
+    m1.metric("👁️ ยอดวิวรวม", "0", "")
+    m2.metric("👤 ผู้เข้าชมแบบไม่ซ้ำ", "0", "")
+    m3.metric("⏱️ เวลาอ่านเฉลี่ย", "0m 0s", "")
+    m4.metric("🔄 อัตราการกลับมาอ่านซ้ำ", "0.0%", "")
     
     st.divider()
 
     st.markdown("### 🚀 แนวโน้มการเข้าชมรายวัน")
     fig_trend = go.Figure()
-    fig_trend.add_trace(go.Scatter(x=df_traffic['Date'], y=df_traffic['Views'], mode='lines+markers', name='ยอดวิว', line=dict(color='#E63946', width=3)))
-    fig_trend.add_trace(go.Scatter(x=df_traffic['Date'], y=df_traffic['Unique Visitors'], mode='lines', fill='tozeroy', name='ผู้เข้าชม', line=dict(color='#1D3557', width=2)))
+    fig_trend.add_trace(go.Scatter(x=df_traffic['Date'], y=df_traffic['Views'], mode='lines', name='ยอดวิว', line=dict(color='#E63946', width=2)))
+    fig_trend.add_trace(go.Scatter(x=df_traffic['Date'], y=df_traffic['Unique Visitors'], mode='lines', name='ผู้เข้าชม', line=dict(color='#1D3557', width=2)))
     fig_trend.update_layout(template="plotly_white", hovermode="x unified", margin=dict(l=0, r=0, t=30, b=0))
+    # กำหนดแกน Y ให้เริ่มที่ 0 เสมอแม้ไม่มีข้อมูล
+    fig_trend.update_yaxes(range=[0, 100])
     st.plotly_chart(fig_trend, use_container_width=True)
 
     col_chart1, col_chart2 = st.columns(2)
     with col_chart1:
         st.markdown("### 🌍 สัดส่วนนักอ่านตามพื้นที่")
-        fig_pie = px.pie(df_demo, values='Percentage', names='Country', hole=0.4, color_discrete_sequence=['#E63946', '#F4A261', '#E9C46A', '#2A9D8F', '#264653'])
-        fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+        fig_pie = px.pie(df_demo, values='Percentage', names='Country', hole=0.4, color_discrete_sequence=['#D3D3D3'])
+        fig_pie.update_traces(textposition='inside', textinfo='label')
         fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10), showlegend=False)
         st.plotly_chart(fig_pie, use_container_width=True)
         
@@ -233,13 +232,11 @@ def analytics_dashboard_view():
         st.markdown("### 🕒 ช่วงเวลาที่คนอ่านมากที่สุด")
         days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
         hours = [f"{i:02d}:00" for i in range(24)]
-        z_data = np.random.poisson(lam=50, size=(7, 24)) 
-        z_data[:, 18:23] += np.random.randint(50, 150, size=(7, 5))
-        fig_heat = px.imshow(z_data, x=hours, y=days, color_continuous_scale="Reds", aspect="auto")
+        fig_heat = px.imshow(z_data, x=hours, y=days, color_continuous_scale="Greys", aspect="auto")
         fig_heat.update_layout(margin=dict(t=10, b=10, l=10, r=10))
         st.plotly_chart(fig_heat, use_container_width=True)
 
-# --- SIDEBAR NAVIGATION (แถบเมนูด้านซ้าย) ---
+# --- SIDEBAR NAVIGATION ---
 with st.sidebar:
     st.title("📕 MinichikoNovel")
     
@@ -260,7 +257,7 @@ with st.sidebar:
         if st.button("🔐 เข้าสู่ระบบ (Login)", type="primary", use_container_width=True):
              go_to('login')
 
-# --- MAIN CONTROLLER (ตัวคุมหน้าจอ) ---
+# --- MAIN CONTROLLER ---
 if st.session_state['current_view'] == 'login':
     login_page_view()
 elif st.session_state['current_view'] == 'workspace' and st.session_state['logged_in']:
