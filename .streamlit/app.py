@@ -25,9 +25,9 @@ USERS = {
 
 MOCK_NOVELS = [
     {"id": 1, "title": "เมื่อรัชทายาทสวมหน้ากาก...", "author": "Minichiko", "desc": "เมื่อรัชทายาทสวมหน้ากาก ทรราชจะครองแผ่นดิน...", "cover": "https://via.placeholder.com/150/E63946/FFFFFF?text=CrownPrince"},
-    {"id": 2, "title": "The Omega's Redemption", "author": "Meilifang", "desc": "เส้นทางการไถ่บาปและโชคชะตาที่ไม่อาจหลีกเลี่ยง...", "cover": "https://via.placeholder.com/150/E63946/FFFFFF?text=Omega"},
+    {"id": 2, "title": "The Omega's Redemption", "author": "Minichiko", "desc": "เส้นทางการไถ่บาปและโชคชะตาที่ไม่อาจหลีกเลี่ยง...", "cover": "https://via.placeholder.com/150/E63946/FFFFFF?text=Omega"},
     {"id": 3, "title": "เกิดใหม่เป็นคุณชายไฮโซ", "author": "Minichiko", "desc": "ชีวิตใหม่ในฐานะคุณชายตระกูลใหญ่...", "cover": "https://via.placeholder.com/150/E63946/FFFFFF?text=YoungMaster"},
-    {"id": 4, "title": "วันวาน (The Past Day)", "author": "Minichiko", "desc": "เรื่องราวความทรงจำและความรักในวันวาน...", "cover": "https://via.placeholder.com/150/E63946/FFFFFF?text=PastDay"},
+    {"id": 4, "title": "วันวาน (The Past Day)", "author": "Meilifang", "desc": "เรื่องราวความทรงจำและความรักในวันวาน...", "cover": "https://via.placeholder.com/150/E63946/FFFFFF?text=PastDay"},
 ]
 
 # --- FUNCTIONS สำหรับควบคุมระบบ ---
