@@ -104,20 +104,25 @@ def writer_workspace_view():
             with c_form2:
                 cover_image = st.file_uploader("🖼️ หน้าปก (จำลอง)", type=['png', 'jpg'])
             
-            if st.button("💾 บันทึกเรื่องใหม่ลง Database", type="primary"):
+if st.button("💾 บันทึกเรื่องใหม่ลง Database", type="primary"):
                 if novel_title:
-                    # ส่งข้อมูลเข้าตาราง 'novels' ใน Supabase
-                    data, count = supabase.table("novels").insert({
-                        "title": novel_title,
-                        "pen_name": pen_name if pen_name else st.session_state['username'],
-                        "category": category,
-                        "status": "ฉบับร่าง"
-                    }).execute()
-                    
-                    st.success(f"บันทึก '{novel_title}' ลงฐานข้อมูลสำเร็จ!")
-                    st.session_state['show_create_form'] = False
-                    time.sleep(1)
-                    st.rerun()
+                    try:
+                        # ลองส่งข้อมูลเข้าตาราง 'novels' ใน Supabase
+                        data, count = supabase.table("novels").insert({
+                            "title": novel_title,
+                            "pen_name": pen_name if pen_name else st.session_state['username'],
+                            "category": category,
+                            "status": "ฉบับร่าง"
+                        }).execute()
+                        
+                        st.success(f"บันทึก '{novel_title}' ลงฐานข้อมูลสำเร็จ!")
+                        st.session_state['show_create_form'] = False
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        # ถ้าพัง ให้คายข้อความ Error จริงๆ ออกมาหน้าเว็บเลย!
+                        st.error(f"🚨 ข้อผิดพลาดจากฐานข้อมูล: {e}")
+                        st.info("💡 คำแนะนำ: ตรวจสอบว่าใน Supabase ได้ปิด RLS (Disable RLS) แล้ว และชื่อคอลัมน์สะกดตรงกันเป๊ะๆ ตัวพิมพ์เล็กทั้งหมดครับ")
                 else:
                     st.error("กรุณาตั้งชื่อเรื่อง")
 
