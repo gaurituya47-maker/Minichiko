@@ -79,7 +79,7 @@ def login_page_view():
                     st.error("กรุณากรอก Username และ Password")
 
 # ==========================================
-# 1. หน้าพื้นที่นักเขียน (WRITER WORKSPACE) - ใช้ DATABASE จริง
+# 1. หน้าพื้นที่นักเขียน (WRITER WORKSPACE)
 # ==========================================
 def writer_workspace_view():
     st.title(f"✒️ พื้นที่นักเขียน (Workspace)")
@@ -104,7 +104,7 @@ def writer_workspace_view():
             with c_form2:
                 cover_image = st.file_uploader("🖼️ หน้าปก (จำลอง)", type=['png', 'jpg'])
             
-if st.button("💾 บันทึกเรื่องใหม่ลง Database", type="primary"):
+            if st.button("💾 บันทึกเรื่องใหม่ลง Database", type="primary"):
                 if novel_title:
                     try:
                         # ลองส่งข้อมูลเข้าตาราง 'novels' ใน Supabase
@@ -120,7 +120,7 @@ if st.button("💾 บันทึกเรื่องใหม่ลง Databa
                         time.sleep(1)
                         st.rerun()
                     except Exception as e:
-                        # ถ้าพัง ให้คายข้อความ Error จริงๆ ออกมาหน้าเว็บเลย!
+                        # ถ้าพัง ให้คายข้อความ Error จริงๆ ออกมาหน้าเว็บเลย
                         st.error(f"🚨 ข้อผิดพลาดจากฐานข้อมูล: {e}")
                         st.info("💡 คำแนะนำ: ตรวจสอบว่าใน Supabase ได้ปิด RLS (Disable RLS) แล้ว และชื่อคอลัมน์สะกดตรงกันเป๊ะๆ ตัวพิมพ์เล็กทั้งหมดครับ")
                 else:
@@ -128,33 +128,42 @@ if st.button("💾 บันทึกเรื่องใหม่ลง Databa
 
     st.markdown("### 📚 งานเขียนของฉัน (ดึงจาก Database)")
     
-    # ดึงข้อมูลนิยายทั้งหมดจาก Supabase
-    response = supabase.table("novels").select("*").order("created_at", desc=True).execute()
-    db_novels = response.data
+    try:
+        # ดึงข้อมูลนิยายทั้งหมดจาก Supabase
+        response = supabase.table("novels").select("*").order("created_at", desc=True).execute()
+        db_novels = response.data
 
-    if not db_novels:
-        st.info("คุณยังไม่มีผลงานในระบบ กดปุ่ม 'เพิ่มงานเขียนใหม่' เลย!")
-    else:
-        for novel in db_novels:
-            with st.container(border=True):
-                c1, c2, c3 = st.columns([3, 1, 1])
-                c1.subheader(f"📕 {novel['title']}")
-                c1.caption(f"นามปากกา: {novel['pen_name']} | หมวด: {novel['category']} | สถานะ: {novel['status']}")
-                c2.write(f"👁‍🗨 {novel['views']} วิว")
-                c2.write(f"💬 {novel['comments']} คอมเมนต์")
-                
-                if c3.button("✏️ จัดการตอน", key=f"edit_{novel['id']}", type="secondary", use_container_width=True):
-                    go_to('manage_chapters', novel['title'])
-                if c3.button("📊 ดูสถิติ", key=f"stat_{novel['id']}", use_container_width=True):
-                    go_to('analytics')
+        if not db_novels:
+            st.info("คุณยังไม่มีผลงานในระบบ กดปุ่ม 'เพิ่มงานเขียนใหม่' เลย!")
+        else:
+            for novel in db_novels:
+                with st.container(border=True):
+                    c1, c2, c3 = st.columns([3, 1, 1])
+                    c1.subheader(f"📕 {novel['title']}")
+                    c1.caption(f"นามปากกา: {novel['pen_name']} | หมวด: {novel['category']} | สถานะ: {novel['status']}")
+                    # ใช้ .get() เพื่อป้องกันกรณีที่คอลัมน์ยังไม่ถูกสร้างสมบูรณ์
+                    c2.write(f"👁‍🗨 {novel.get('views', 0)} วิว")
+                    c2.write(f"💬 {novel.get('comments', 0)} คอมเมนต์")
+                    
+                    if c3.button("✏️ จัดการตอน", key=f"edit_{novel['id']}", type="secondary", use_container_width=True):
+                        go_to('manage_chapters', novel['title'])
+                    if c3.button("📊 ดูสถิติ", key=f"stat_{novel['id']}", use_container_width=True):
+                        go_to('analytics')
+    except Exception as e:
+        st.error(f"🚨 ไม่สามารถดึงข้อมูลได้: {e}")
 
-# (หน้า Manage Chapters และ Analytics คงเดิมตามที่คุณมีล่าสุด)
+# ==========================================
+# 2. หน้าจัดการตอน (CHAPTER MANAGEMENT)
+# ==========================================
 def manage_chapters_view():
     novel_name = st.session_state.get('editing_novel_name', 'นิยาย')
     st.title(f"📖 จัดการตอน: {novel_name}")
     if st.button("◀ กลับ", use_container_width=False): go_to('workspace')
     st.info("ระบบจัดการตอนกำลังเชื่อมต่อกับตาราง chapters (Coming Soon)")
 
+# ==========================================
+# 3. หน้าแดชบอร์ดสถิติ (ANALYTICS)
+# ==========================================
 def analytics_dashboard_view():
     st.title("📊 สถิติผู้เข้าชมเชิงลึก")
     if st.button("◀ กลับ", use_container_width=False): go_to('workspace')
