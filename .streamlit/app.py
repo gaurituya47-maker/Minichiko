@@ -101,7 +101,6 @@ def writer_workspace_view():
             
             c_form1, c_form2 = st.columns(2)
             with c_form1:
-                # ปรับแต่งช่องนามปากกา ให้ผู้ใช้กรอกเองได้อิสระ
                 pen_name_input = st.text_input("นามปากกา (ถ้าปล่อยว่างจะใช้ Username)", placeholder="เช่น Minichiko หรือ Meilifang")
                 category = st.selectbox("หมวดหมู่", ["นิยายวาย (BL)", "นิยายจีนโบราณ", "โรมานซ์", "แฟนตาซี"])
             with c_form2:
@@ -110,7 +109,6 @@ def writer_workspace_view():
             if st.button("💾 บันทึกเรื่องใหม่ลง Database", type="primary"):
                 if novel_title:
                     try:
-                        # กำหนดค่านามปากกา ถ้าไม่ได้พิมพ์มา ให้ดึง Username ไปใช้แทน
                         final_pen_name = pen_name_input.strip() if pen_name_input.strip() != "" else st.session_state['username']
                         
                         supabase.table("novels").insert({
@@ -140,9 +138,8 @@ def writer_workspace_view():
         else:
             for novel in db_novels:
                 with st.container(border=True):
-                    c1, c2, c3 = st.columns([3, 1, 1])
+                    c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
                     c1.subheader(f"📕 {novel.get('title', 'ไม่มีชื่อเรื่อง')}")
-                    # ดึงนามปากกาจากฐานข้อมูลมาแสดงอย่างถูกต้อง
                     c1.caption(f"นามปากกา: {novel.get('pen_name', 'ไม่ระบุ')} | หมวด: {novel.get('category', '')} | สถานะ: {novel.get('status', '')}")
                     c2.write(f"👁‍🗨 {novel.get('views', 0)} วิว")
                     c2.write(f"💬 {novel.get('comments', 0)} คอมเมนต์")
@@ -151,11 +148,23 @@ def writer_workspace_view():
                         go_to('manage_chapters', novel['title'])
                     if c3.button("📊 ดูสถิติ", key=f"stat_{novel['id']}", use_container_width=True):
                         go_to('analytics')
+                    
+                    # ปุ่มลบนิยายออกจากฐานข้อมูล
+                    if c4.button("🗑️ ลบเรื่องนี้", key=f"del_{novel['id']}", use_container_width=True):
+                        try:
+                            # สั่งลบข้อมูลจากตาราง novels โดยอิงจาก id
+                            supabase.table("novels").delete().eq("id", novel['id']).execute()
+                            st.success(f"ลบนิยายเรื่อง {novel.get('title')} ออกจากระบบแล้ว")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"🚨 ไม่สามารถลบได้: {e}")
+
     except Exception as e:
         st.error(f"🚨 ไม่สามารถดึงข้อมูลได้: {e}")
 
 # ==========================================
-# 2. หน้าจัดการตอน (CHAPTER MANAGEMENT) - เชื่อมต่อตาราง chapters แล้ว
+# 2. หน้าจัดการตอน (CHAPTER MANAGEMENT)
 # ==========================================
 def manage_chapters_view():
     novel_name = st.session_state.get('editing_novel_name', 'นิยาย')
@@ -189,6 +198,17 @@ def manage_chapters_view():
                 for i, ch in enumerate(db_chapters):
                     with st.container(border=True):
                         st.markdown(f"**ตอนที่ {i+1}:** {ch.get('chapter_name', 'ไม่มีชื่อตอน')}  \n`สถานะ: {ch.get('status', '')} | 👁‍🗨 {ch.get('views', 0)} วิว`")
+                        
+                        # ปุ่มลบแต่ละตอน
+                        if st.button("🗑️ ลบตอน", key=f"del_ch_{ch['id']}", help="ลบตอนนี้ทิ้ง"):
+                            try:
+                                supabase.table("chapters").delete().eq("id", ch['id']).execute()
+                                st.success("ลบตอนสำเร็จ")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"ลบไม่ได้: {e}")
+                                
         except Exception as e:
             st.error(f"🚨 ดึงข้อมูลตอนล้มเหลว: {e}")
             st.info("ตรวจสอบว่าสร้างตาราง 'chapters' และปิด RLS ใน Supabase แล้วหรือยัง")
