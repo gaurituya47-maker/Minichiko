@@ -48,6 +48,7 @@ def logout_user():
     st.session_state['logged_in'] = False
     st.session_state['username'] = None
     st.session_state['show_create_form'] = False
+    st.session_state['editing_novel_name'] = ""
     go_to('home')
 
 # --- DATA GENERATOR (ANALYTICS ZERO STATE) ---
@@ -96,10 +97,12 @@ def writer_workspace_view():
     if st.session_state['show_create_form']:
         with st.container(border=True):
             st.markdown("### ✨ สร้างนิยายเรื่องใหม่")
-            novel_title = st.text_input("ชื่อเรื่อง")
+            novel_title = st.text_input("ชื่อเรื่อง", placeholder="เช่น เมื่อรัชทายาทสวมหน้ากาก...")
+            
             c_form1, c_form2 = st.columns(2)
             with c_form1:
-                pen_name = st.text_input("นามปากกา")
+                # ปรับแต่งช่องนามปากกา ให้ผู้ใช้กรอกเองได้อิสระ
+                pen_name_input = st.text_input("นามปากกา (ถ้าปล่อยว่างจะใช้ Username)", placeholder="เช่น Minichiko หรือ Meilifang")
                 category = st.selectbox("หมวดหมู่", ["นิยายวาย (BL)", "นิยายจีนโบราณ", "โรมานซ์", "แฟนตาซี"])
             with c_form2:
                 cover_image = st.file_uploader("🖼️ หน้าปก (จำลอง)", type=['png', 'jpg'])
@@ -107,29 +110,28 @@ def writer_workspace_view():
             if st.button("💾 บันทึกเรื่องใหม่ลง Database", type="primary"):
                 if novel_title:
                     try:
-                        # ลองส่งข้อมูลเข้าตาราง 'novels' ใน Supabase
-                        data, count = supabase.table("novels").insert({
+                        # กำหนดค่านามปากกา ถ้าไม่ได้พิมพ์มา ให้ดึง Username ไปใช้แทน
+                        final_pen_name = pen_name_input.strip() if pen_name_input.strip() != "" else st.session_state['username']
+                        
+                        supabase.table("novels").insert({
                             "title": novel_title,
-                            "pen_name": pen_name if pen_name else st.session_state['username'],
+                            "pen_name": final_pen_name,
                             "category": category,
                             "status": "ฉบับร่าง"
                         }).execute()
                         
-                        st.success(f"บันทึก '{novel_title}' ลงฐานข้อมูลสำเร็จ!")
+                        st.success(f"บันทึก '{novel_title}' โดย {final_pen_name} สำเร็จ!")
                         st.session_state['show_create_form'] = False
-                        time.sleep(1)
+                        time.sleep(1.5)
                         st.rerun()
                     except Exception as e:
-                        # ถ้าพัง ให้คายข้อความ Error จริงๆ ออกมาหน้าเว็บเลย
                         st.error(f"🚨 ข้อผิดพลาดจากฐานข้อมูล: {e}")
-                        st.info("💡 คำแนะนำ: ตรวจสอบว่าใน Supabase ได้ปิด RLS (Disable RLS) แล้ว และชื่อคอลัมน์สะกดตรงกันเป๊ะๆ ตัวพิมพ์เล็กทั้งหมดครับ")
                 else:
                     st.error("กรุณาตั้งชื่อเรื่อง")
 
-    st.markdown("### 📚 งานเขียนของฉัน (ดึงจาก Database)")
+    st.markdown("### 📚 งานเขียนของฉัน")
     
     try:
-        # ดึงข้อมูลนิยายทั้งหมดจาก Supabase
         response = supabase.table("novels").select("*").order("created_at", desc=True).execute()
         db_novels = response.data
 
@@ -139,9 +141,9 @@ def writer_workspace_view():
             for novel in db_novels:
                 with st.container(border=True):
                     c1, c2, c3 = st.columns([3, 1, 1])
-                    c1.subheader(f"📕 {novel['title']}")
-                    c1.caption(f"นามปากกา: {novel['pen_name']} | หมวด: {novel['category']} | สถานะ: {novel['status']}")
-                    # ใช้ .get() เพื่อป้องกันกรณีที่คอลัมน์ยังไม่ถูกสร้างสมบูรณ์
+                    c1.subheader(f"📕 {novel.get('title', 'ไม่มีชื่อเรื่อง')}")
+                    # ดึงนามปากกาจากฐานข้อมูลมาแสดงอย่างถูกต้อง
+                    c1.caption(f"นามปากกา: {novel.get('pen_name', 'ไม่ระบุ')} | หมวด: {novel.get('category', '')} | สถานะ: {novel.get('status', '')}")
                     c2.write(f"👁‍🗨 {novel.get('views', 0)} วิว")
                     c2.write(f"💬 {novel.get('comments', 0)} คอมเมนต์")
                     
@@ -153,38 +155,157 @@ def writer_workspace_view():
         st.error(f"🚨 ไม่สามารถดึงข้อมูลได้: {e}")
 
 # ==========================================
-# 2. หน้าจัดการตอน (CHAPTER MANAGEMENT)
+# 2. หน้าจัดการตอน (CHAPTER MANAGEMENT) - เชื่อมต่อตาราง chapters แล้ว
 # ==========================================
 def manage_chapters_view():
     novel_name = st.session_state.get('editing_novel_name', 'นิยาย')
-    st.title(f"📖 จัดการตอน: {novel_name}")
-    if st.button("◀ กลับ", use_container_width=False): go_to('workspace')
-    st.info("ระบบจัดการตอนกำลังเชื่อมต่อกับตาราง chapters (Coming Soon)")
+    
+    col_h1, col_h2 = st.columns([5, 1])
+    with col_h1:
+        st.title(f"📖 จัดการตอน: {novel_name}")
+    with col_h2:
+        if st.button("◀ กลับพื้นที่นักเขียน", use_container_width=True): 
+            go_to('workspace')
+            
+    st.divider()
+    
+    if supabase is None:
+        st.error("🚨 ไม่สามารถเชื่อมต่อฐานข้อมูลได้")
+        return
+
+    col_list, col_editor = st.columns([1, 2])
+    
+    # --- ฝั่งซ้าย: แสดงรายการตอนทั้งหมด ---
+    with col_list:
+        st.subheader("📑 รายการตอนทั้งหมด")
+        try:
+            res = supabase.table("chapters").select("*").eq("novel_title", novel_name).order("created_at", desc=False).execute()
+            db_chapters = res.data
+
+            if not db_chapters:
+                with st.container(border=True):
+                    st.info("ยังไม่มีเนื้อหาในเรื่องนี้ เริ่มเขียนตอนแรกเลย!")
+            else:
+                for i, ch in enumerate(db_chapters):
+                    with st.container(border=True):
+                        st.markdown(f"**ตอนที่ {i+1}:** {ch.get('chapter_name', 'ไม่มีชื่อตอน')}  \n`สถานะ: {ch.get('status', '')} | 👁‍🗨 {ch.get('views', 0)} วิว`")
+        except Exception as e:
+            st.error(f"🚨 ดึงข้อมูลตอนล้มเหลว: {e}")
+            st.info("ตรวจสอบว่าสร้างตาราง 'chapters' และปิด RLS ใน Supabase แล้วหรือยัง")
+
+    # --- ฝั่งขวา: ฟอร์มเพิ่มตอนใหม่ ---
+    with col_editor:
+        st.subheader("➕ เพิ่มตอนใหม่")
+        with st.container(border=True):
+            chapter_name = st.text_input("ชื่อตอน", placeholder="เช่น ตอนที่ 1: จุดเริ่มต้น...")
+            st.markdown("เนื้อหาตอน (พิมพ์หรือวางเนื้อหาที่นี่)")
+            chapter_content = st.text_area("เนื้อหาตอน", height=350, label_visibility="collapsed")
+            st.caption(f"จำนวนคำคร่าวๆ: {len(chapter_content.split())} คำ")
+            
+            st.markdown("### 🕒 ตั้งค่าการเผยแพร่")
+            publish_mode = st.radio("เลือกรูปแบบ", ["🚀 เผยแพร่ทันที", "💾 บันทึกเป็นฉบับร่าง"], horizontal=True)
+            status_val = "เผยแพร่แล้ว" if publish_mode == "🚀 เผยแพร่ทันที" else "ฉบับร่าง"
+                
+            if st.button("✅ บันทึกตอนใหม่", type="primary", use_container_width=True):
+                if chapter_name and chapter_content:
+                    try:
+                        supabase.table("chapters").insert({
+                            "novel_title": novel_name,
+                            "chapter_name": chapter_name,
+                            "content": chapter_content,
+                            "status": status_val
+                        }).execute()
+                        
+                        st.success(f"บันทึกตอน '{chapter_name}' สำเร็จ!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"🚨 บันทึกไม่สำเร็จ: {e}")
+                else:
+                    st.error("กรุณาใส่ชื่อตอนและเนื้อหาก่อนบันทึก")
 
 # ==========================================
-# 3. หน้าแดชบอร์ดสถิติ (ANALYTICS)
+# 3. หน้าแดชบอร์ดสถิติ (ANALYTICS - ZERO STATE)
 # ==========================================
 def analytics_dashboard_view():
-    st.title("📊 สถิติผู้เข้าชมเชิงลึก")
-    if st.button("◀ กลับ", use_container_width=False): go_to('workspace')
-    st.info("โหมดพร้อมใช้งาน: รอการดึงข้อมูลสถิติจากฐานข้อมูลจริง")
+    col_h1, col_h2 = st.columns([5, 1])
+    with col_h1:
+        st.title("📊 สถิติผู้เข้าชมเชิงลึก")
+    with col_h2:
+        if st.button("◀ กลับไปพื้นที่นักเขียน", use_container_width=True):
+            go_to('workspace')
+            
+    st.info("ℹ️ โหมดพร้อมใช้งาน: รอการเชื่อมต่อข้อมูลสถิติจากฐานข้อมูลจริง")
+    
+    df_traffic, df_demo, z_data = get_empty_analytics_data()
+    
+    st.markdown("### 📈 ภาพรวม 30 วันย้อนหลัง")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("👁️ ยอดวิวรวม", "0", "")
+    m2.metric("👤 ผู้เข้าชมแบบไม่ซ้ำ", "0", "")
+    m3.metric("⏱️ เวลาอ่านเฉลี่ย", "0m 0s", "")
+    m4.metric("🔄 อัตราการกลับมาอ่านซ้ำ", "0.0%", "")
+    
+    st.divider()
+
+    st.markdown("### 🚀 แนวโน้มการเข้าชมรายวัน")
+    fig_trend = go.Figure()
+    fig_trend.add_trace(go.Scatter(x=df_traffic['Date'], y=df_traffic['Views'], mode='lines', name='ยอดวิว', line=dict(color='#E63946', width=2)))
+    fig_trend.add_trace(go.Scatter(x=df_traffic['Date'], y=df_traffic['Unique Visitors'], mode='lines', name='ผู้เข้าชม', line=dict(color='#1D3557', width=2)))
+    fig_trend.update_layout(template="plotly_white", hovermode="x unified", margin=dict(l=0, r=0, t=30, b=0))
+    fig_trend.update_yaxes(range=[0, 100])
+    st.plotly_chart(fig_trend, use_container_width=True)
+
+    col_chart1, col_chart2 = st.columns(2)
+    with col_chart1:
+        st.markdown("### 🌍 สัดส่วนนักอ่านตามพื้นที่")
+        fig_pie = px.pie(df_demo, values='Percentage', names='Country', hole=0.4, color_discrete_sequence=['#D3D3D3'])
+        fig_pie.update_traces(textposition='inside', textinfo='label')
+        fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10), showlegend=False)
+        st.plotly_chart(fig_pie, use_container_width=True)
+        
+    with col_chart2:
+        st.markdown("### 🕒 ช่วงเวลาที่คนอ่านมากที่สุด")
+        days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        hours = [f"{i:02d}:00" for i in range(24)]
+        fig_heat = px.imshow(z_data, x=hours, y=days, color_continuous_scale="Greys", aspect="auto")
+        fig_heat.update_layout(margin=dict(t=10, b=10, l=10, r=10))
+        st.plotly_chart(fig_heat, use_container_width=True)
 
 # --- SIDEBAR NAVIGATION ---
 with st.sidebar:
     st.title("📕 MinichikoNovel")
+    
     if st.session_state['logged_in']:
-        if st.button("✒️ พื้นที่นักเขียน"): go_to('workspace')
-        if st.button("📊 สถิติ"): go_to('analytics')
+        st.success(f"👤 ผู้ใช้: {st.session_state['username']}")
         st.divider()
-        if st.button("🚪 ออกจากระบบ"): logout_user()
+        if st.button("✒️ พื้นที่นักเขียน", use_container_width=True):
+             go_to('workspace')
+        if st.button("📊 สถิติแบบละเอียด", use_container_width=True):
+             go_to('analytics')
+        st.divider()
+        if st.button("🚪 ออกจากระบบ", use_container_width=True):
+            logout_user()
     else:
-        if st.button("🏠 หน้าแรก"): go_to('home')
-        if st.button("🔐 เข้าสู่ระบบ"): go_to('login')
+        st.info("สถานะ: บุคคลทั่วไป")
+        if st.button("🏠 หน้าแรก (Home)", use_container_width=True):
+             go_to('home')
+        if st.button("🔐 เข้าสู่ระบบ (Login)", type="primary", use_container_width=True):
+             go_to('login')
 
 # --- MAIN CONTROLLER ---
-if st.session_state['current_view'] == 'login': login_page_view()
-elif st.session_state['current_view'] == 'workspace' and st.session_state['logged_in']: writer_workspace_view()
-elif st.session_state['current_view'] == 'manage_chapters' and st.session_state['logged_in']: manage_chapters_view()
-elif st.session_state['current_view'] == 'analytics' and st.session_state['logged_in']: analytics_dashboard_view()
-elif st.session_state['current_view'] == 'home': home_page_view()
-else: go_to('workspace' if st.session_state['logged_in'] else 'home')
+if st.session_state['current_view'] == 'login':
+    login_page_view()
+elif st.session_state['current_view'] == 'workspace' and st.session_state['logged_in']:
+    writer_workspace_view()
+elif st.session_state['current_view'] == 'manage_chapters' and st.session_state['logged_in']:
+    manage_chapters_view()
+elif st.session_state['current_view'] == 'analytics' and st.session_state['logged_in']:
+    analytics_dashboard_view()
+elif st.session_state['current_view'] == 'home':
+    home_page_view()
+else:
+    if st.session_state['logged_in']:
+        go_to('workspace')
+    else:
+        go_to('home')
